@@ -1,12 +1,25 @@
-# Android In-App Billing v3 Library [![Build Status](https://travis-ci.org/anjlab/android-inapp-billing-v3.svg?branch=master)](https://travis-ci.org/anjlab/android-inapp-billing-v3)  [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.anjlab.android.iab.v3/library/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.anjlab.android.iab.v3/library)
-
-This is a simple, straight-forward implementation of the Android v3 In-app billing API.
+# Android In-App Billing v3 Library [![Build Status](https://github.com/anjlab/android-inapp-billing-v3/actions/workflows/connected-check.yml/badge.svg)](https://github.com/anjlab/android-inapp-billing-v3/actions/workflows/connected-check.yml)  [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.anjlab.android.iab.v3/library/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.anjlab.android.iab.v3/library)
+This is a simple, straight-forward implementation of the Android v4 In-app billing API.
 
 It supports: In-App Product Purchases (both non-consumable and consumable) and Subscriptions.
 
+## Maintainers Wanted
+
+This project is looking for maintainers. 
+
+For now only pull requests of external contributors are being reviewed, accepted and welcomed. No more bug fixes or new features will be implemented by the Anjlab team. 
+
+If you are interesting in giving this project some :heart:, please chime in!
+
+## v4 API Upgrade Notice
+
+Originally this was Google's v2 Billing API implementation, for those who  interested all source code kept safe [here](https://github.com/anjlab/android-inapp-billing-v3/tree/v2_billing_1_1_0).
+
+If you got your app using this library previously, here is the [Migration Guide](https://github.com/anjlab/android-inapp-billing-v3/blob/master/UPGRADING.md).
+
 ## Getting Started
 
-* You project should build against Android 2.2 SDK at least.
+* You project should build against Android 4.0 SDK at least.
 
 * Add this *Android In-App Billing v3 Library* to your project:
   - If you guys are using Eclipse, download latest jar version from the [releases](https://github.com/anjlab/android-inapp-billing-v3/releases) section of this repository and add it as a dependency
@@ -16,14 +29,10 @@ repositories {
   mavenCentral()
 }
 dependencies {
-  compile 'com.anjlab.android.iab.v3:library:1.0.44'
+  implementation 'com.anjlab.android.iab.v3:library:2.0.3'
 }
 ```
 
-* Open the *AndroidManifest.xml* of your application and add this permission:
-```xml
-  <uses-permission android:name="com.android.vending.BILLING" />
-```
 * Create instance of BillingProcessor class and implement callback in your Activity source code. Constructor will take 3 parameters:
   - **Context**
   - **Your License Key from Google Developer console.** This will be used to verify purchase signatures. You can pass NULL if you would like to skip this check (*You can find your key in Google Play Console -> Your App Name -> Services & APIs*)
@@ -38,6 +47,7 @@ public class SomeActivity extends Activity implements BillingProcessor.IBillingH
     setContentView(R.layout.activity_main);
 
     bp = new BillingProcessor(this, "YOUR LICENSE KEY FROM GOOGLE PLAY CONSOLE HERE", this);
+    bp.initialize();
     // or bp = BillingProcessor.newBillingProcessor(this, "YOUR LICENSE KEY FROM GOOGLE PLAY CONSOLE HERE", this);
     // See below on why this is a useful alternative
   }
@@ -52,7 +62,7 @@ public class SomeActivity extends Activity implements BillingProcessor.IBillingH
   }
 	
   @Override
-  public void onProductPurchased(String productId, TransactionDetails details) {
+  public void onProductPurchased(String productId, PurchaseInfo purchaseInfo) {
     /*
     * Called when requested PRODUCT ID was successfully purchased
     */
@@ -78,42 +88,13 @@ public class SomeActivity extends Activity implements BillingProcessor.IBillingH
 }
 ```
 
-* override Activity's onActivityResult method:
-```java
-@Override
-protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-  if (!bp.handleActivityResult(requestCode, resultCode, data)) {
-    super.onActivityResult(requestCode, resultCode, data);
-  }  
-}
-```
-
 * Call `purchase` method for a BillingProcessor instance to initiate purchase or `subscribe` to initiate a subscription:
 
-_Without a developer payload:_
 ```java
 bp.purchase(YOUR_ACTIVITY, "YOUR PRODUCT ID FROM GOOGLE PLAY CONSOLE HERE");
 bp.subscribe(YOUR_ACTIVITY, "YOUR SUBSCRIPTION ID FROM GOOGLE PLAY CONSOLE HERE");
 ```
-_With a developer payload:_
-```java
-bp.purchase(YOUR_ACTIVITY, "YOUR PRODUCT ID FROM GOOGLE PLAY CONSOLE HERE", "DEVELOPER PAYLOAD HERE");
-bp.subscribe(YOUR_ACTIVITY, "YOUR SUBSCRIPTION ID FROM GOOGLE PLAY CONSOLE HERE", "DEVELOPER PAYLOAD HERE");
-```
-_IMPORTANT: when you provide a payload, internally the library prepends a string to your payload. For subscriptions, it prepends `"subs:\<productId\>:"`, and for products, it prepends `"inapp:\<productId\>:\<UUID\>:"`. This is important to know if you do any validation on the payload returned from Google Play after a successful purchase._
 
-_With a bundle of extra parameters:_
-
-```java
-Bundle extraParams = new Bundle()
-extraParams.putString("accountId", "MY_ACCOUNT_ID");
-bp.purchase(YOUR_ACTIVITY, "YOUR PRODUCT ID FROM GOOGLE PLAY CONSOLE HERE", null /*or developer payload*/, extraParams);
-bp.subscribe(YOUR_ACTIVITY, "YOUR SUBSCRIPTION ID FROM GOOGLE PLAY CONSOLE HERE", null /*or developer payload*/, extraParams);
-```
-
-Use these methods if you want to pass extra parameters, [as documented here](https://developer.android.com/google/play/billing/billing_reference.html#getBuyIntentExtraParams), you can provide a Bundle object.
-
-_Please note that this feature is only available if the target device is support the version 7 of the In App billing API._
 
 * **That's it! A super small and fast in-app library ever!**
 
@@ -147,18 +128,18 @@ Before any usage it's good practice to check in-app billing services availabilit
 In some older devices or chinese ones it may happen that Play Market is unavailable or is deprecated
  and doesn't support in-app billing.
 
-Simply call static method `BillingProcessor.isIabServiceAvailable()`:
+Simply call static method `BillingProcessor.isIabServiceAvailable(context)`:
 ```java
-boolean isAvailable = BillingProcessor.isIabServiceAvailable();
+boolean isAvailable = BillingProcessor.isIabServiceAvailable(this);
 if(!isAvailable) {
   // continue
 }
 ```
 Please notice that calling `BillingProcessor.isIabServiceAvailable()` (only checks Play Market app installed or not) is not enough because there might be a case when it returns true but still payment won't succeed.
-Therefore, it's better to call `isOneTimePurchaseSupported()` after initializing `BillingProcessor`:
+Therefore, it's better to call `bp.isConnected()` after initializing `BillingProcessor`:
 ```java
-boolean isOneTimePurchaseSupported = billingProcessor.isOneTimePurchaseSupported();
-if(isOneTimePurchaseSupported) {
+boolean isConnected = billingProcessor.isConnected();
+if(isConnected) {
   // launch payment flow
 }
 ```
@@ -174,13 +155,13 @@ if(isSubsUpdateSupported) {
 
 You can always consume made purchase and allow to buy same product multiple times. To do this you need:
 ```java
-bp.consumePurchase("YOUR PRODUCT ID FROM GOOGLE PLAY CONSOLE HERE");
+bp.consumePurchaseAsync("YOUR PRODUCT ID FROM GOOGLE PLAY CONSOLE HERE", new IPurchasesResponseListener());
 ```
 
 ## Restore Purchases & Subscriptions
 
 ```java
-bp.loadOwnedPurchasesFromGoogle();
+bp.loadOwnedPurchasesFromGoogleAsync(new IPurchasesResponseListener());
 ```
 
 ## Getting Listing Details of Your Products
@@ -188,11 +169,11 @@ bp.loadOwnedPurchasesFromGoogle();
 To query listing price and a description of your product / subscription listed in Google Play use these methods:
 
 ```java
-bp.getPurchaseListingDetails("YOUR PRODUCT ID FROM GOOGLE PLAY CONSOLE HERE");
-bp.getSubscriptionListingDetails("YOUR SUBSCRIPTION ID FROM GOOGLE PLAY CONSOLE HERE");
+bp.getPurchaseListingDetailsAsync("YOUR PRODUCT ID FROM GOOGLE PLAY CONSOLE HERE", new ISkuDetailsResponseListener());
+bp.getSubscriptionListingDetailsAsync("YOUR SUBSCRIPTION ID FROM GOOGLE PLAY CONSOLE HERE", new ISkuDetailsResponseListener());
 ```
 
-As a result you will get a `SkuDetails` object with the following info included:
+As a result you will get a callback call including `List<SkuDetails>` data with one SkuDetails object with the following info included:
 
 ```java
 public final String productId;
@@ -207,41 +188,37 @@ public final String priceText;
 To get info for multiple products / subscriptions on one query, just pass a list of product ids:
 
 ```java
-bp.getPurchaseListingDetails(arrayListOfProductIds);
-bp.getSubscriptionListingDetails(arrayListOfProductIds);
+bp.getPurchaseListingDetailsAsync(arrayListOfProductIds, new ISkuDetailsResponseListener());
+bp.getSubscriptionListingDetailsAsync(arrayListOfProductIds, new ISkuDetailsResponseListener());
 ```
 
 where arrayListOfProductIds is a `ArrayList<String>` containing either IDs for products or subscriptions.
 
-As a result you will get a `List<SkuDetails>` which contains objects described above.
 
-## Getting Purchase Transaction Details
-As a part or 1.0.9 changes, `TransactionDetails` object is passed to `onProductPurchased` method of a handler class.
+## Getting Purchase Info Details
+`PurchaseInfo` object is passed to `onProductPurchased` method of a handler class.
 However, you can always retrieve it later calling these methods:
 
 ```java
-bp.getPurchaseTransactionDetails("YOUR PRODUCT ID FROM GOOGLE PLAY CONSOLE HERE");
-bp.getSubscriptionTransactionDetails("YOUR SUBSCRIPTION ID FROM GOOGLE PLAY CONSOLE HERE");
+bp.getPurchaseInfo("YOUR PRODUCT ID FROM GOOGLE PLAY CONSOLE HERE");
+bp.getSubscriptionPurchaseInfo("YOUR SUBSCRIPTION ID FROM GOOGLE PLAY CONSOLE HERE");
 ```
 
-As a result you will get a `TransactionDetails` object with the following info included:
+As a result you will get a `PurchaseInfo` object with the following info included:
 
 ```java
-public final String productId;
-public final String orderId;
-public final String purchaseToken;
-public final Date purchaseTime;
-    
-// containing the raw json string from google play and the signature to
-// verify the purchase on your own server
-public final PurchaseInfo purchaseInfo;
+public final String responseData;
+public final String signature;
+
+// PurchaseData contains orderId, productId, purchaseTime, purchaseToken, purchaseState and autoRenewing fields 
+public final PurchaseData purchaseData;
 ```
 
 ## Handle Canceled Subscriptions
 
-Call `bp.getSubscriptionTransactionDetails(...)` and check the `purchaseInfo.purchaseData.autoRenewing` flag.
+Call `bp.getSubscriptionPurchaseInfo(...)` and check the `purchaseData.autoRenewing` flag.
 It will be set to `False` once subscription gets cancelled.
-Also notice, that you will need to call periodically `bp.loadOwnedPurchasesFromGoogle()` method in order to update subscription information
+Also notice, that you will need to call periodically `bp.loadOwnedPurchasesFromGoogleAsync()` method in order to update subscription information
 
 ## Promo Codes Support
 
@@ -266,7 +243,7 @@ Then using `merchantId` just call constructor:
 
 Later one can easily check transaction validity using method:
 
-    public boolean isValid(TransactionDetails transactionDetails);
+    public boolean isValidPurchaseInfo(PurchaseInfo purchaseInfo);
 
 P.S. This kind of protection works only for transactions dated between 5th December 2012 and
 21st July 2015. Before December 2012 `orderId` wasn't contain `merchantId` and in the end of July this
@@ -282,12 +259,9 @@ The contents in the consumer proguard file contains:
 -keep class com.android.vending.billing.**
 ```
 
-As per the IABv3 [documentation](https://developer.android.com/google/play/billing/billing_best_practices.html#validating-purchase-device)
-
-
 ## License
 
-Copyright 2014 AnjLab
+Copyright 2021 AnjLab
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
